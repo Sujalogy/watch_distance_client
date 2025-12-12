@@ -1,4 +1,11 @@
 {
   "name": "watch_distance_client",
-  "displayName": "Watch Together"
+  "displayName": "Watch Together",
+  "extra": {
+    "eas": {
+      "projectId": "3ece6caf-a457-49f6-a936-1a5408a5ddb3"
+    }
+  },
+  "owner": "sujalthakur",
+  "slug": "watch-distance"
 }

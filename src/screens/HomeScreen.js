@@ -1,48 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
 import SocketService from '../services/socket';
 
 const HomeScreen = ({ navigation }) => {
-  const [roomId, setRoomId] = useState('couple-love-123'); 
+  const [roomId, setRoomId] = useState('couple-room-1'); 
+  const [videoUrl, setVideoUrl] = useState(''); // Unified URL input
 
   useEffect(() => {
     SocketService.connect();
   }, []);
 
-  const enterRoom = (screen) => {
+  const enterRoom = () => {
     if (!roomId) {
-      Alert.alert("Wait!", "Please enter a Room ID");
+      Alert.alert("Missing Info", "Please enter a Room ID");
       return;
     }
+    // If no URL is provided, we assume they are joining an existing room
     SocketService.joinRoom(roomId);
-    navigation.navigate(screen, { roomId });
+    
+    navigation.navigate('UniversalWatchScreen', { 
+      roomId, 
+      initialUrl: videoUrl || null // Pass the URL if the user added one
+    });
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Watch Together ❤️</Text>
+      <Text style={styles.title}>Watch Together 🍿</Text>
       
       <TextInput
         style={styles.input}
-        placeholder="Enter Room Code"
+        placeholder="Enter Room ID (e.g. love-nest)"
         placeholderTextColor="#888"
         value={roomId}
         onChangeText={setRoomId}
       />
 
-      <TouchableOpacity 
-        style={[styles.btn, { backgroundColor: '#FF0000' }]}
-        onPress={() => enterRoom('WatchScreen')}
-      >
-        <Text style={styles.btnText}>Watch YouTube</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Paste Video Link (YouTube, MP4, Telegram Direct Link)"
+        placeholderTextColor="#888"
+        value={videoUrl}
+        onChangeText={setVideoUrl}
+        autoCapitalize="none"
+      />
+
+      <TouchableOpacity style={styles.btn} onPress={enterRoom}>
+        <Text style={styles.btnText}>Join Room & Watch</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={[styles.btn, { backgroundColor: '#E50914' }]} 
-        onPress={() => enterRoom('WebWatchScreen')}
-      >
-        <Text style={styles.btnText}>Watch Netflix / Web</Text>
-      </TouchableOpacity>
+      <Text style={styles.hint}>
+        * For Telegram: Use a direct download link (ending in .mp4)
+      </Text>
     </View>
   );
 };
@@ -51,8 +60,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center', padding: 20 },
   title: { fontSize: 28, color: 'white', fontWeight: 'bold', marginBottom: 40 },
   input: { width: '100%', backgroundColor: '#222', color: 'white', padding: 15, borderRadius: 10, marginBottom: 20, fontSize: 16 },
-  btn: { width: '100%', padding: 15, borderRadius: 10, alignItems: 'center', marginBottom: 15 },
-  btnText: { color: 'white', fontSize: 16, fontWeight: 'bold' }
+  btn: { width: '100%', backgroundColor: '#E50914', padding: 15, borderRadius: 10, alignItems: 'center' },
+  btnText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  hint: { color: '#666', marginTop: 20, fontSize: 12, textAlign: 'center' }
 });
 
 export default HomeScreen;
