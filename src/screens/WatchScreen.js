@@ -1,86 +1,71 @@
-// frontend/src/screens/WatchScreen.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import SocketService from '../services/socket';
 
 const WatchScreen = ({ route }) => {
-  const { roomId } = route.params; // Passed from Home Screen
+  const { roomId } = route.params;
   const [playing, setPlaying] = useState(false);
   const playerRef = useRef();
   
-  // LOCK: Prevents infinite loops. 
-  // If true, we are reacting to a socket event, not user input.
+  // LOCK: Prevents infinite loops (Me -> Server -> Her -> Server -> Me)
   const isRemoteUpdate = useRef(false);
 
   useEffect(() => {
-    const socket = SocketService.socket;
+    SocketService.on('sync-action', async ({ type, payload }) => {
+      console.log('Received:', type, payload);
+      isRemoteUpdate.current = true; 
 
-    // LISTEN for commands from partner
-    socket.on('sync-action', ({ type, payload }) => {
-      console.log('Received command:', type, payload);
-      isRemoteUpdate.current = true; // Engage Lock
-
-      switch (type) {
-        case 'PLAY':
-          setPlaying(true);
-          break;
-        case 'PAUSE':
-          setPlaying(false);
-          break;
-        case 'SEEK':
-          playerRef.current?.seekTo(payload.time, true);
-          break;
+      if (type === 'PLAY') {
+        // 1. Sync Time First
+        playerRef.current?.seekTo(payload.time, true);
+        // 2. Then Play
+        setPlaying(true);
+      } else if (type === 'PAUSE') {
+        setPlaying(false);
       }
 
-      // Disengage lock after a small delay (hacky but effective for MVP)
-      setTimeout(() => { isRemoteUpdate.current = false; }, 500);
+      // Unlock after 1 second
+      setTimeout(() => { isRemoteUpdate.current = false; }, 1000);
     });
 
-    return () => {
-      socket.off('sync-action');
-    };
+    return () => SocketService.off('sync-action');
   }, []);
 
-  // EMIT events when YOU touch the controls
-  const onStateChange = (state) => {
-    if (isRemoteUpdate.current) return; // Ignore if triggered by partner
+  const onStateChange = useCallback(async (state) => {
+    if (isRemoteUpdate.current) return;
 
     if (state === 'playing') {
-      SocketService.socket.emit('sync-action', { roomId, type: 'PLAY' });
+      const time = await playerRef.current?.getCurrentTime();
+      SocketService.emit('sync-action', { 
+        roomId, 
+        type: 'PLAY', 
+        payload: { time } // Send time with play to handle seeking!
+      });
     } else if (state === 'paused') {
-      SocketService.socket.emit('sync-action', { roomId, type: 'PAUSE' });
+      SocketService.emit('sync-action', { roomId, type: 'PAUSE', payload: {} });
     }
-  };
-
-  // YouTube doesn't have a direct "onSeek" event, so we rely on state changes
-  // or a manual "Sync" button for seeking in this basic version.
+  }, [roomId]);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Connected to Room: {roomId}</Text>
-      
+      <Text style={styles.header}>Room: {roomId}</Text>
       <YoutubePlayer
         ref={playerRef}
-        height={300}
+        height={240}
         play={playing}
-        videoId={"dQw4w9WgXcQ"} // Default video
+        videoId={"dQw4w9WgXcQ"}
         onChangeState={onStateChange}
       />
-
-      <View style={styles.controls}>
-        <Text style={styles.status}>
-           {playing ? "Playing Together ❤️" : "Paused"}
-        </Text>
-      </View>
+      <Text style={styles.status}>{playing ? "▶ Playing" : "⏸ Paused"}</Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
-  header: { color: 'white', textAlign: 'center', marginBottom: 20 },
-  status: { color: 'white', textAlign: 'center', marginTop: 20 }
+  header: { color: '#aaa', textAlign: 'center', marginBottom: 20 },
+  status: { color: 'white', textAlign: 'center', marginTop: 20, fontSize: 18 }
 });
 
 export default WatchScreen;
